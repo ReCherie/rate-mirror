@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>利率照妖镜 · 真实年化测算</title>
+<style>
+  :root{
+    --bg:#F5F5F2; --card:#FFFFFF; --ink:#101112; --sub:#76746E; --faint:#A8A49C;
+    --line:#E7E5DF; --line-2:#F1EFE9; --accent:#B3372B; --ok:#1E6B53;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased; font-size:14px; line-height:1.45;
+  }
+  .app{
+    max-width:1460px; margin:0 auto; min-height:calc(100vh - 42px); background:var(--card);
+    display:grid; grid-template-columns:336px 1fr; box-shadow:0 0 0 1px var(--line);
+  }
+
+  /* ---------------- 左栏 ---------------- */
+  .side{border-right:1px solid var(--line); padding:32px 26px 24px; display:flex; flex-direction:column; gap:26px}
+  .brand{display:flex; align-items:baseline; gap:8px}
+  .brand h1{font-size:16px; font-weight:600; margin:0; letter-spacing:.01em}
+  .brand span{font-size:10px; color:var(--faint); letter-spacing:.16em}
+  .section-label{font-size:10.5px; color:var(--faint); letter-spacing:.16em; margin:0 0 8px}
+
+  .bills{display:flex; flex-direction:column; margin:0 -10px}
+  .bill{
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    padding:8px 10px; border-radius:7px; cursor:pointer; border:0; background:transparent;
+    text-align:left; width:100%; font:inherit; color:var(--ink); position:relative;
+  }
+  .bill:hover{background:#FAF9F6}
+  .bill[aria-selected="true"]{background:#F7F4EE}
+  .bill[aria-selected="true"]::before{
+    content:""; position:absolute; left:0; top:8px; bottom:8px; width:2px; background:var(--accent); border-radius:2px;
+  }
+  .bill em{font-style:normal; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .bill b{font-weight:400; font-size:11.5px; color:var(--faint); font-variant-numeric:tabular-nums}
+
+  .fields{display:grid; grid-template-columns:1fr 1fr; gap:12px 16px}
+  .field{display:flex; flex-direction:column; gap:4px; min-width:0}
+  .field label{font-size:10.5px; color:var(--sub)}
+  .field input{
+    border:0; border-bottom:1px solid var(--line); background:transparent; padding:4px 0 5px;
+    font:inherit; font-size:14.5px; color:var(--ink); font-variant-numeric:tabular-nums; outline:none;
+    width:100%; transition:border-color .12s;
+  }
+  .field input:focus{border-color:var(--ink)}
+  .act{display:flex; gap:8px; margin-top:14px}
+  button.primary{
+    flex:1; height:42px; border-radius:9px; border:0; background:var(--ink); color:#fff;
+    font:inherit; font-size:13px; cursor:pointer;
+  }
+  button.primary:hover{opacity:.87}
+  button.ghost{
+    height:42px; padding:0 13px; border-radius:9px; border:1px solid var(--line); background:transparent;
+    font:inherit; font-size:12.5px; color:var(--sub); cursor:pointer;
+  }
+  button.ghost:hover{border-color:var(--faint); color:var(--ink)}
+  .side-foot{margin-top:auto; padding-top:20px; font-size:10.5px; color:var(--faint); line-height:1.7}
+
+  /* ---------------- 右栏 ---------------- */
+  .main{padding:34px 52px 28px; display:flex; flex-direction:column; gap:24px; min-width:0}
+  .topline{display:flex; justify-content:space-between; align-items:baseline; gap:20px}
+  .topline .t{font-size:14px; font-weight:500}
+  .topline .meta{font-size:11px; color:var(--faint); font-variant-numeric:tabular-nums; white-space:nowrap}
+
+  .hero{display:grid; grid-template-columns:1fr 1.2fr auto; gap:40px; align-items:end}
+  .kpi{display:flex; flex-direction:column; justify-content:flex-end; gap:8px; height:112px; min-width:0}
+  .kpi .k{font-size:11.5px; color:var(--sub); height:14px; line-height:14px}
+  .kpi .v{height:74px; display:flex; align-items:flex-end; font-variant-numeric:tabular-nums; letter-spacing:-.025em; line-height:1; white-space:nowrap}
+  .kpi .note{font-size:10.5px; color:var(--faint); height:15px; line-height:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .kpi.nominal .v{font-size:34px; font-weight:300; color:#B6B2A8}
+  .kpi.real .v{font-size:70px; font-weight:600; color:var(--accent)}
+  .kpi.real .v small{font-size:24px; font-weight:400; letter-spacing:0}
+  .kpi.side{text-align:right}
+  .kpi.side .v{font-size:24px; font-weight:400; justify-content:flex-end}
+
+  .bars{border-top:1px solid var(--line); padding-top:28px; display:flex; flex-direction:column; gap:22px}
+  .bar-row{display:grid; grid-template-columns:64px 1fr 74px; align-items:center; gap:18px}
+  .bar-row .lab{font-size:11.5px; color:var(--sub)}
+  .bar-row .val{font-size:12px; text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+  .track{position:relative; height:5px; background:var(--line-2); border-radius:3px}
+  .fill{position:absolute; left:0; top:0; bottom:0; border-radius:3px; transition:width .5s cubic-bezier(.22,.61,.36,1)}
+  .fill.gray{background:#D0CCC3}
+  .fill.red{background:var(--accent)}
+  .marker{position:absolute; top:-4px; bottom:-4px; width:1px; background:#918D84}
+  .legend{display:flex; align-items:center; gap:6px; font-size:10px; color:var(--faint); margin:6px 0 0; justify-content:flex-end}
+  .legend s{display:inline-block; width:1px; height:9px; background:#918D84}
+
+  .stats{display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid var(--line); border-bottom:1px solid var(--line)}
+  .stat{padding:16px 22px 16px 0; min-width:0}
+  .stat+.stat{border-left:1px solid var(--line); padding-left:22px}
+  .stat .k{display:block; font-size:10.5px; color:var(--sub); margin-bottom:5px}
+  .stat .v{font-size:20px; font-variant-numeric:tabular-nums; letter-spacing:-.01em; white-space:nowrap}
+  .stat .v small{font-size:11px; color:var(--faint); margin-left:3px; letter-spacing:0}
+
+  .verdict{display:flex; align-items:center; gap:10px; font-size:13px}
+  .dot{width:6px; height:6px; border-radius:50%; flex:none}
+  .dot.bad{background:var(--accent)} .dot.good{background:var(--ok)}
+  .convert{font-size:11.5px; color:var(--faint); margin:0; padding-top:14px; border-top:1px solid var(--line-2)}
+
+  .lower{display:grid; grid-template-columns:1fr 1fr; gap:44px; border-top:1px solid var(--line); padding-top:24px}
+  .block{min-width:0}
+  .block h3{font-size:11px; color:var(--sub); font-weight:500; margin:0 0 12px; letter-spacing:.06em}
+  .prepay-fields{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:12px}
+  .prepay-out{font-size:12.5px; line-height:1.65; margin:0}
+  .prepay-out b{font-weight:600}
+  .law{font-size:11.5px; color:var(--sub); line-height:1.8; margin:0}
+  .law strong{color:var(--ink); font-weight:500}
+  .law cite{display:block; font-style:normal; font-size:10.5px; color:var(--faint); margin-top:6px}
+
+  footer{
+    max-width:1460px; margin:0 auto; padding:10px 4px 22px;
+    display:flex; justify-content:space-between; font-size:10.5px; color:var(--faint);
+  }
+
+  /* ---------------- 弹窗 ---------------- */
+  dialog{border:1px solid var(--line); border-radius:14px; padding:0; width:min(540px,92vw); color:var(--ink); box-shadow:0 24px 60px rgba(16,17,18,.16)}
+  dialog::backdrop{background:rgba(16,17,18,.26)}
+  .dlg{padding:24px 24px 20px}
+  .dlg h2{font-size:14.5px; margin:0 0 5px; font-weight:600}
+  .dlg p{font-size:11.5px; color:var(--sub); margin:0 0 14px}
+  .dlg textarea{
+    width:100%; min-height:112px; resize:vertical; border:1px solid var(--line); border-radius:9px;
+    padding:11px; font:inherit; font-size:12px; line-height:1.65; outline:none; color:var(--ink);
+  }
+  .dlg textarea:focus{border-color:var(--faint)}
+  .dlg .row{display:flex; gap:8px; margin-top:12px; align-items:center}
+  .dlg .msg{font-size:11px; color:var(--sub); flex:1; min-width:0}
+  .dlg .row .primary{flex:none; padding:0 18px; height:38px}
+  .dlg .row .ghost{height:38px}
+
+  @media (max-width:1100px){
+    .app{grid-template-columns:1fr}
+    .side{border-right:0; border-bottom:1px solid var(--line)}
+    .main{padding:26px}
+    .hero{grid-template-columns:1fr 1fr}
+    .kpi.side{display:none}
+    footer{padding:10px 26px 20px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><h1>利率照妖镜</h1><span>IRR</span></div>
+
+    <div>
+      <p class="section-label">样本账单</p>
+      <div class="bills" id="bills"></div>
+    </div>
+
+    <div>
+      <p class="section-label">参数</p>
+      <div class="fields">
+        <div class="field"><label>本金</label><input id="principal" type="number" step="100"></div>
+        <div class="field"><label>期数</label><input id="periods" type="number" step="1"></div>
+        <div class="field"><label>月供</label><input id="payment" type="number" step="0.01"></div>
+        <div class="field"><label>一次性费用</label><input id="fee" type="number" step="50"></div>
+        <div class="field"><label>标称年化 %</label><input id="nominal" type="number" step="0.1"></div>
+        <div class="field"><label>司法红线 %</label><input id="redline" type="number" step="0.25" value="12"></div>
+      </div>
+      <div class="act">
+        <button class="primary" id="calc">测算</button>
+        <button class="ghost" id="ai">识别账单</button>
+      </div>
+    </div>
+
+    <p class="side-foot">样本为模拟数据，不指向任何真实平台。<br>口径：IRR，名义年化 = 月 IRR × 12。</p>
+  </aside>
+
+  <main class="main">
+    <div class="topline">
+      <span class="t" id="billName">电商白条式分期</span>
+      <span class="meta" id="billMeta"></span>
+    </div>
+
+    <section class="hero">
+      <div class="kpi nominal">
+        <span class="k">标称</span>
+        <span class="v" id="vNominal">—</span>
+        <span class="note" id="nominalNote"></span>
+      </div>
+      <div class="kpi real">
+        <span class="k">真实年化</span>
+        <span class="v" id="vReal">—<small></small></span>
+        <span class="note">IRR 口径 · 含全部费用</span>
+      </div>
+      <div class="kpi side">
+        <span class="k">有效年化</span>
+        <span class="v" id="vEar">—</span>
+        <span class="note">复利</span>
+      </div>
+    </section>
+
+    <section class="bars">
+      <div class="bar-row">
+        <span class="lab">标称</span>
+        <div class="track"><div class="fill gray" id="barNominal" style="width:0"></div></div>
+        <span class="val" id="barNominalVal">—</span>
+      </div>
+      <div class="bar-row">
+        <span class="lab">真实</span>
+        <div class="track">
+          <div class="fill red" id="barReal" style="width:0"></div>
+          <div class="marker" id="marker" style="left:0"></div>
+        </div>
+        <span class="val" id="barRealVal">—</span>
+      </div>
+      <p class="legend"><s></s><span id="legendLab">司法红线 12%</span></p>
+    </section>
+
+    <section class="stats">
+      <div class="stat"><span class="k">总成本</span><div class="v" id="sCost">—<small>元</small></div></div>
+      <div class="stat"><span class="k">总还款</span><div class="v" id="sPaid">—<small>元</small></div></div>
+      <div class="stat"><span class="k">月 IRR</span><div class="v" id="sMirr">—</div></div>
+    </section>
+
+    <section class="verdict"><span class="dot good" id="vDot"></span><span id="vText">—</span></section>
+
+    <p class="convert" id="convert">—</p>
+
+    <section class="lower">
+      <div class="block">
+        <h3>提前还款</h3>
+        <div class="prepay-fields">
+          <div class="field"><label>剩余期数</label><input id="remN" type="number" step="1"></div>
+          <div class="field"><label>剩余本金</label><input id="remP" type="number" step="100"></div>
+          <div class="field"><label>违约金</label><input id="penalty" type="number" step="100" value="0"></div>
+        </div>
+        <p class="prepay-out" id="prepayOut">—</p>
+      </div>
+      <div class="block">
+        <h3>依据</h3>
+        <p class="law">
+          <strong>贷款产品应明示年化利率</strong>，并以明显方式展示；年化利率应包含借款人承担的综合融资成本，利息之外的各项费用须折算计入。
+          <cite>中国人民银行公告〔2021〕第 3 号</cite>
+        </p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer>
+  <span>利率照妖镜 · 课程实践</span>
+  <span>本工具仅作利率信息分析，不构成投资或借贷建议</span>
+</footer>
+
+<dialog id="aiDlg">
+  <div class="dlg">
+    <h2>识别账单</h2>
+    <p>粘贴账单文本，字段由模型抽取，计算在本地完成。</p>
+    <textarea id="aiText">小明在某平台借款12000元，分12期，标称月费率0.6%，每月还款1072元；另收取一次性服务费200元。</textarea>
+    <div class="row">
+      <span class="msg" id="aiMsg"></span>
+      <button class="ghost" id="aiCancel">取消</button>
+      <button class="primary" id="aiRun">解析</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+const BILLS = [
+  {id:1,name:"电商白条式分期",nominal:7.2,note:"月费率 0.6%",principal:12000,periods:12,payment:1072,fee:0,extra:0},
+  {id:2,name:"手机 3 期分期",nominal:9.0,note:"月费率 0.75%",principal:5000,periods:3,payment:1704.17,fee:0,extra:0},
+  {id:3,name:"银行消费贷",nominal:9.6,note:"月利率 0.8%",principal:30000,periods:24,payment:1378.82,fee:0,extra:0},
+  {id:4,name:"先息后本经营贷",nominal:10.8,note:"月息 0.9%",principal:100000,periods:12,payment:900,fee:0,extra:100000},
+  {id:5,name:"一次性服务费",nominal:7.92,note:"月费率 0.66% + 800 元",principal:10000,periods:12,payment:900,fee:800,extra:0},
+  {id:6,name:"免息分期（收手续费）",nominal:0,note:"免息 + 300 元手续费",principal:6000,periods:6,payment:1000,fee:300,extra:0},
+  {id:7,name:"高息现金贷",nominal:24,note:"月费率 2%",principal:20000,periods:12,payment:2100,fee:0,extra:0},
+  {id:8,name:"日息万五",nominal:18.25,note:"日息 0.05%",principal:10000,periods:12,payment:983.33,fee:0,extra:0},
+  {id:9,name:"校园分期",nominal:null,note:"仅告知月供",principal:8000,periods:12,payment:799,fee:0,extra:0},
+  {id:10,name:"装修贷",nominal:3.96,note:"月利率 0.33%",principal:200000,periods:36,payment:5901.24,fee:0,extra:0}
+];
+
+const $ = id => document.getElementById(id);
+let current = BILLS[0];
+
+function pv(cf, r){ return cf.reduce((s,c,t)=> s + c/Math.pow(1+r,t), 0); }
+function irrMonthly(cf){
+  let r = 0.02;
+  for(let i=0;i<100;i++){
+    const f = pv(cf,r);
+    const d = cf.reduce((s,c,t)=> s - t*c/Math.pow(1+r,t+1), 0);
+    if(Math.abs(f) < 1e-10) return r;
+    if(!d) break;
+    const next = r - f/d;
+    if(next <= 0 || next > 10) break;
+    r = next;
+  }
+  let lo = 1e-9, hi = 2;
+  if(pv(cf,lo)*pv(cf,hi) > 0) return NaN;
+  for(let i=0;i<200;i++){
+    const mid = (lo+hi)/2;
+    if(pv(cf,mid) > 0) lo = mid; else hi = mid;
+    if(hi-lo < 1e-10) break;
+  }
+  return (lo+hi)/2;
+}
+const pct = (x,d=2) => (x*100).toFixed(d) + "%";
+const money = x => Math.round(x).toLocaleString("zh-CN");
+
+function compute(){
+  const principal = Number($("principal").value) || 0;
+  const fee = Number($("fee").value) || 0;
+  const n = Math.max(1, Number($("periods").value) || 0);
+  const pay = Number($("payment").value) || 0;
+  const pays = new Array(n).fill(pay);
+  if(current.extra) pays[n-1] += current.extra;
+
+  const cf = [-(principal - fee), ...pays];
+  const r = irrMonthly(cf);
+  if(!isFinite(r) || isNaN(r)){
+    $("vReal").innerHTML = "—";
+    $("convert").textContent = "参数不足：请检查本金、期数与月供。";
+    return;
+  }
+  const apr = r*12, ear = Math.pow(1+r,12)-1;
+  const cost = pays.reduce((a,b)=>a+b,0) + fee - principal;
+  const nominal = $("nominal").value === "" ? null : Number($("nominal").value)/100;
+  const redline = (Number($("redline").value) || 12)/100;
+
+  $("vReal").innerHTML = (apr*100).toFixed(2) + "<small>%</small>";
+  $("vNominal").textContent = nominal === null ? "未披露" : pct(nominal);
+  $("nominalNote").textContent = current.note || "";
+  $("vEar").textContent = pct(ear);
+
+  const max = Math.max(apr, nominal || 0, redline) * 1.16;
+  $("barNominal").style.width = nominal === null ? "0%" : (nominal/max*100)+"%";
+  $("barNominalVal").textContent = nominal === null ? "—" : pct(nominal);
+  $("barReal").style.width = (apr/max*100)+"%";
+  $("barRealVal").textContent = pct(apr);
+  $("marker").style.left = (redline/max*100)+"%";
+  $("legendLab").textContent = "司法红线 " + pct(redline,0);
+
+  $("sCost").innerHTML = money(cost) + "<small>元</small>";
+  $("sPaid").innerHTML = money(pays.reduce((a,b)=>a+b,0) + fee) + "<small>元</small>";
+  $("sMirr").textContent = pct(r,3);
+
+  const over = apr > redline;
+  $("vDot").className = "dot " + (over ? "bad" : "good");
+  $("vText").textContent = over
+    ? `超过司法保护上限 ${pct(redline,0)}，超出 ${pct(apr-redline)}`
+    : `在司法保护上限 ${pct(redline,0)} 以内`;
+
+  const cups = Math.round(cost/15);
+  $("convert").textContent = cost > 0
+    ? `总成本 ${money(cost)} 元，约 ${cups} 杯奶茶（15 元/杯），相当于每期多付 ${money(cost/n)} 元`
+    : "无附加成本";
+
+  const remN = Math.max(1, Number($("remN").value) || Math.floor(n/2));
+  const remP = Number($("remP").value) || Math.round(principal*0.5);
+  const penalty = Number($("penalty").value) || 0;
+  const remInterest = Math.max(0, pay*remN - remP);
+  $("prepayOut").innerHTML = (penalty >= remInterest && remInterest > 0)
+    ? `剩余利息 ${money(remInterest)} 元，违约金 ${money(penalty)} 元 — <b>不划算</b>，不必提前还。`
+    : `剩余利息 ${money(remInterest)} 元，违约金 ${money(penalty)} 元 — <b>划算</b>，约省 ${money(Math.max(0, remInterest-penalty))} 元。`;
+
+  $("billMeta").textContent = `${money(principal)} 元 · ${n} 期 · 月供 ${money(pay)} 元` + (fee ? ` · 费用 ${money(fee)} 元` : "");
+}
+
+function selectBill(b){
+  current = b;
+  $("billName").textContent = b.name;
+  $("principal").value = b.principal;
+  $("periods").value = b.periods;
+  $("payment").value = b.payment;
+  $("fee").value = b.fee;
+  $("nominal").value = b.nominal === null ? "" : b.nominal;
+  $("remN").value = Math.max(1, Math.floor(b.periods/2));
+  $("remP").value = Math.round(b.principal*0.5);
+  $("penalty").value = 0;
+  document.querySelectorAll(".bill").forEach(el => el.setAttribute("aria-selected", el.dataset.id == b.id ? "true" : "false"));
+  compute();
+}
+
+function renderBills(){
+  $("bills").innerHTML = BILLS.map(b =>
+    `<button class="bill" data-id="${b.id}" aria-selected="false">
+       <em>${b.name}</em><b>${b.nominal===null?"—":b.nominal.toFixed(1)+"%"}</b>
+     </button>`).join("");
+  document.querySelectorAll(".bill").forEach(el => {
+    el.onclick = () => selectBill(BILLS.find(b => b.id == el.dataset.id));
+  });
+}
+
+$("ai").onclick = () => { $("aiMsg").textContent = ""; $("aiDlg").showModal(); };
+$("aiCancel").onclick = () => $("aiDlg").close();
+$("aiRun").onclick = async () => {
+  const msg = $("aiMsg");
+  msg.textContent = "解析中…";
+  try{
+    const res = await fetch("/api/parse", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({text: $("aiText").value})
+    });
+    const data = await res.json();
+    if(!res.ok || data.error){ msg.textContent = data.error || "解析失败"; return; }
+    $("principal").value = data.principal;
+    $("periods").value = data.periods;
+    $("payment").value = data.installments[0];
+    $("fee").value = data.upfront_fee || 0;
+    $("nominal").value = data.nominal_apr ?? "";
+    $("remN").value = Math.max(1, Math.floor(data.periods/2));
+    $("remP").value = Math.round(data.principal*0.5);
+    current = {...current, extra:0, note:data.nominal_text || "AI 识别"};
+    $("billName").textContent = "AI 识别结果";
+    document.querySelectorAll(".bill").forEach(el => el.setAttribute("aria-selected","false"));
+    $("aiDlg").close();
+    compute();
+  }catch(e){
+    msg.textContent = "无法连接解析服务。";
+  }
+};
+
+$("calc").onclick = compute;
+["principal","periods","payment","fee","nominal","redline","remN","remP","penalty"].forEach(id => {
+  $(id).addEventListener("input", compute);
+});
+
+renderBills();
+selectBill(BILLS[0]);
+</script>
+</body>
+</html>
